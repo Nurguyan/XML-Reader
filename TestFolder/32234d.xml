@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <texteditor>32234d</texteditor>
+    <fileformats>sd</fileformats>
+    <encoding>sdf</encoding>
+    <hasintellisense>true</hasintellisense>
+    <hasplugins>true</hasplugins>
+    <cancompile>true</cancompile>
+</root>
