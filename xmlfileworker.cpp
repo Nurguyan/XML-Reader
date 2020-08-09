@@ -15,16 +15,16 @@ void XMLFileWorker::importFromFile(const QStringList &files)
         emit fileChanged(filename);
         //QThread::sleep(1); //uncomment this to test progress dialog, can be removed
         TextEditor tmp;
-        std::unique_ptr<QFile> file = std::make_unique<QFile>(filename);
+        QFile file(filename);
 
-        if (!file->open(QIODevice::ReadOnly | QIODevice::Text))
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
         {
             emit fileImportCompleted(filename, false);
             qDebug("Couldn't open file.");
             return;
         }
 
-        QXmlStreamReader xml(file.get());
+        QXmlStreamReader xml(&file);
 
         //Parse the XML until we reach end of it
         while(!xml.atEnd() && !xml.hasError())
@@ -100,7 +100,7 @@ void XMLFileWorker::importFromFile(const QStringList &files)
         }
         //close reader and flush file
         xml.clear();
-        file->close();
+        file.close();
 
     }
     emit sendImportedData(result);
@@ -121,13 +121,13 @@ bool XMLFileWorker::isCanceled()
 
 void XMLFileWorker::exportToFile(const QString &filename, const TextEditor &text_editor)
 {
-    std::unique_ptr<QFile> out = std::make_unique<QFile>(filename);
-    if (!out->open(QIODevice::WriteOnly | QIODevice::Text))
+    QFile out(filename);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Text))
     {
         qCritical("Couldn't open file.");
         return;
     }
-    QXmlStreamWriter stream(out.get());
+    QXmlStreamWriter stream(&out);
     stream.setAutoFormatting(true);
     stream.writeStartDocument();
     stream.writeStartElement("root");

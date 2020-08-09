@@ -4,7 +4,6 @@
 #include <QAbstractTableModel>
 #include <QList>
 #include "texteditor.h"
-#include "databaseworker.h"
 
 
 class TableModel : public QAbstractTableModel
@@ -28,32 +27,20 @@ public:
     bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole) override;
     //Check if edited record is has unique primary key
     bool isUniquePrimaryKey(QString name);
-
     Qt::ItemFlags flags(const QModelIndex& index) const override;
 
     // Add data:
     bool insertRows(int row, int count, const QModelIndex &parent = QModelIndex()) override;
+    void addEntry(int row, const TextEditor text_editor);
+    void setTextEditorList(const QList<TextEditor>&);          //update model data
     // Remove data:
     bool removeRows(int row, int count, const QModelIndex &parent = QModelIndex()) override;
 
-
 private:
     QList<TextEditor> text_editors;
-    DatabaseWorker *db_worker;
-    QThread *db_thread;
-
-public slots:
-    void addEntry(int row, const TextEditor text_editor);   //add record into database
-    void removeEntry(const int row);                        //remove record from database
-    void removeAllEntries();                                //delete all records from database
-
-private slots:
-    void updateModelData(const QList<TextEditor>);          //update model data
 
 signals:
-    void executeSqlQuery(QString);
-    void updateData();                                      //load all current record from database
-
+    void sendEditedData(const int row, const TextEditor& edited_data);
 };
 
 #endif // MODEL_H

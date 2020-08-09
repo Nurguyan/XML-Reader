@@ -27,7 +27,7 @@ signals:
     void fileChanged(QString filename);                     //send new file's name to import dialog
     void fileImportCompleted(QString file, bool success);   //param(bool success): false - import failed; true - import successful
     void sendImportedData(const QList<TextEditor> &result); //send result
-    void done();
+    void done();                                            //notify thread to quit
 };
 
 #endif // XMLFILEIMPORTER_H

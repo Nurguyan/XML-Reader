@@ -1,9 +1,6 @@
 #include "listmodel.h"
 
-ListModel::ListModel(QObject *parent) : QAbstractListModel(parent)
-{
-
-}
+ListModel::ListModel(QObject *parent) : QAbstractListModel(parent){}
 
 int ListModel::rowCount(const QModelIndex &parent) const
 {

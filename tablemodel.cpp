@@ -4,46 +4,9 @@
 #include <QDebug>
 #include <QThread>
 
-TableModel::TableModel(QObject *parent) : QAbstractTableModel (parent){
-    db_thread = new QThread();
-    db_worker = new DatabaseWorker();
-    //clean up after yourself
-    connect(db_thread, &QThread::finished, db_thread, &QThread::deleteLater);
-    connect(db_thread, &QThread::finished, db_worker, &QThread::deleteLater);
-    //create connection once the thread starts
-    connect(db_thread, &QThread::started, db_worker, &DatabaseWorker::createConnection);
-    //send SQL queries from Model to the Database Worker
-    connect(this, &TableModel::executeSqlQuery, db_worker, &DatabaseWorker::executeQuery, Qt::QueuedConnection);
-    //get all records from database (i.e. send query "select * from text_editors")
-    connect(this, &TableModel::updateData, db_worker, &DatabaseWorker::executeSelectAllQuery,Qt::QueuedConnection);
+TableModel::TableModel(QObject *parent) : QAbstractTableModel (parent){}
 
-    db_worker->moveToThread(db_thread);
-    db_thread->start();
-
-    QString query("CREATE TABLE IF NOT EXISTS text_editors(text_editor TEXT NOT NULL, file_formats TEXT NOT NULL, "
-                            "encoding TEXT NOT NULL, has_intellisense INTEGER DEFAULT 0, "
-                            "has_plugins INTEGER DEFAULT 0, can_compile INTEGER DEFAULT 0)");
-    emit executeSqlQuery(query);
-    emit updateData();
-}
-
-TableModel::~TableModel()
-{
-   /* db_thread->quit();
-    db_thread->wait();
-    delete db_thread;
-    delete db_worker;*/
-}
-
-
-void TableModel::updateModelData(const QList<TextEditor> list)
-{
-    text_editors = list;
-    auto top_left = index(0,0);
-    auto bottom_right = index(rowCount()-1,columnCount()-1);
-    emit dataChanged(top_left, bottom_right);
-    emit layoutChanged();
-}
+TableModel::~TableModel(){}
 
 QVariant TableModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
@@ -117,14 +80,9 @@ bool TableModel::setData(const QModelIndex &index, const QVariant &value, int ro
             case 4: tmp.setPlugins(value.toBool()); break;
             case 5: tmp.setCompiles(value.toBool());  break;
         }       
-        auto update_query = QString("UPDATE text_editors SET text_editor='%1',file_formats='%2',encoding='%3',has_intellisense=%4,"
-                                    "has_plugins=%5,can_compile=%6 WHERE text_editor = '%7';").arg(tmp.getName()).
-                arg(tmp.getFormats()).arg(tmp.getEncoding()).arg(tmp.hasIntellisense()).arg(tmp.hasPlugins()).arg(tmp.hasCompiler()).
-                arg(text_editors.at(row).getName());
-        //!replace element in list only after creating update query
         text_editors.replace(row, tmp);
-        emit executeSqlQuery(update_query);
-        emit dataChanged(index, index);
+        emit sendEditedData(row, tmp);
+        emit dataChanged(index, index, QVector<int>() << role);
         return true;
     }
 
@@ -154,6 +112,17 @@ bool TableModel::insertRows(int row, int count, const QModelIndex &parent)
     return true;
 }
 
+bool TableModel::removeRows(int row, int count, const QModelIndex &parent)
+{
+    beginRemoveRows(parent, row, row + count - 1);
+    for (int i = 0; i < count; ++i)
+    {
+        text_editors.removeAt(row);
+    }
+    endRemoveRows();
+    return true;
+}
+
 void TableModel::addEntry(int row, const TextEditor text_editor)
 {
     if (const auto& name = text_editor.getName(); !name.isEmpty() && isUniquePrimaryKey(name)) {   
@@ -165,36 +134,17 @@ void TableModel::addEntry(int row, const TextEditor text_editor)
         setData(index(row, 3, QModelIndex()), text_editor.hasIntellisense(), Qt::EditRole);
         setData(index(row, 4, QModelIndex()), text_editor.hasPlugins(), Qt::EditRole);
         setData(index(row, 5, QModelIndex()), text_editor.hasCompiler(), Qt::EditRole);
-
-        const QString query = QString("INSERT INTO text_editors(text_editor, file_formats, encoding, has_intellisense, has_plugins, can_compile) VALUES("
-                      "'%1', '%2', '%3', %4, %5, %6)").arg(text_editor.getName()).arg(text_editor.getFormats()).arg(text_editor.getEncoding()).
-                arg(int(text_editor.hasIntellisense())).arg(int(text_editor.hasPlugins())).arg(int(text_editor.hasCompiler()));
-        emit executeSqlQuery(query);
     }
 }
 
-void TableModel::removeEntry(const int row)
+void TableModel::setTextEditorList(const QList<TextEditor>& list)
 {
-    removeRows(row, 1, QModelIndex());
-    const QString query = QString("DELETE FROM text_editors WHERE text_editor = '%1';").arg(data(index(row,0)).toString());
-    emit executeSqlQuery(query);
+    text_editors = list;
+    auto top_left = index(0,0);
+    auto bottom_right = index(rowCount()-1,columnCount()-1);
+    emit dataChanged(top_left, bottom_right);
+    emit layoutChanged();
 }
 
-void TableModel::removeAllEntries()
-{
-    removeRows(0, rowCount(), QModelIndex());
-}
 
-bool TableModel::removeRows(int row, int count, const QModelIndex &parent)
-{
-    beginRemoveRows(parent, row, row + count - 1);
-    for (int i = 0; i < count; ++i)
-    {
-        const QString query = QString("DELETE FROM text_editors WHERE text_editor = '%1';").arg(text_editors.at(row).getName());
-        emit executeSqlQuery(query);
-        text_editors.removeAt(row);
-    }
-    endRemoveRows();
-    return true;
-}
 

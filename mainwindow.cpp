@@ -13,11 +13,13 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
 
+    //GUI
     connect(ui->actionOpen_File, &QAction::triggered, this, &MainWindow::onImportFilesBtClick); //connecting import file event to its slot
     connect(ui->actionOpen_Folder, &QAction::triggered, this, &MainWindow::onImportDirBtClick); //connecting import directory event to its slot
     connect(ui->actionClear_database,  &QAction::triggered, this, &MainWindow::onClearBtClick); //connecting clear DB to its slot
     connect(ui->actionExit, &QAction::triggered, QCoreApplication::instance(), &QCoreApplication::quit);
 
+    //TableView
     model = new TableModel(this);
     ui->tbv_text_editors->setModel(model);
     combo_box_delegate = new ComboBoxDelegate(ui->tbv_text_editors);
@@ -28,7 +30,21 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->tbv_text_editors, &QTableView::customContextMenuRequested, this, &MainWindow::onCustomMenuRequested);
     ui->tbv_text_editors->show();
 
+    //Database
+    db_thread = new QThread();
+    db_worker = new DatabaseWorker();
+    connect(db_thread, &QThread::finished, db_thread, &QThread::deleteLater); //clean up after yourself
+    connect(db_thread, &QThread::finished, db_worker, &QObject::deleteLater); //clean up after yourself
+    connect(db_thread, &QThread::started, db_worker, &DatabaseWorker::createConnection);//create connection once the thread starts
+    connect(this, &MainWindow::executeSqlQuery, db_worker, &DatabaseWorker::executeQuery, Qt::QueuedConnection); //send SQL queries from Model to the Database Worker
+    connect(this, &MainWindow::updateData, db_worker, &DatabaseWorker::executeSelectAllQuery,Qt::QueuedConnection); //get all records from database
+    connect(db_worker, &DatabaseWorker::sendSelectAllQueryResult, model, &TableModel::setTextEditorList, Qt::BlockingQueuedConnection);
+    connect(model, &TableModel::sendEditedData, db_worker, &DatabaseWorker::onDataChanged); //update database when table model is edited
 
+    db_worker->moveToThread(db_thread);
+    db_thread->start();
+
+    emit updateData();
 }
 
 void MainWindow::importFiles(QStringList files)
@@ -92,7 +108,11 @@ void MainWindow::onClearBtClick()
     int ret = msgBox.exec();
 
     if (ret == QMessageBox::Yes)
-        model->removeAllEntries();
+    {
+        model->removeRows(0, model->rowCount());
+        const QString query = QString("DELETE FROM text_editors");
+        emit executeSqlQuery(query);
+    }
 }
 
 void MainWindow::onCustomMenuRequested(QPoint pos){
@@ -111,7 +131,7 @@ void MainWindow::onCustomMenuRequested(QPoint pos){
     menu->addAction(export_row);
     menu->popup(ui->tbv_text_editors->viewport()->mapToGlobal(pos));
     connect(edit, &QAction::triggered, this, &MainWindow::onEditRowAction);
-    connect(remove_row, &QAction::triggered, this, &MainWindow::onRemoveRowsAction);
+    connect(remove_row, &QAction::triggered, this, &MainWindow::onRemoveRowAction);
     connect(export_row, &QAction::triggered, this, &MainWindow::onExportRowAction);
 }
 
@@ -122,11 +142,14 @@ void MainWindow::onEditRowAction()
     ui->tbv_text_editors->edit(index);
 }
 
-void MainWindow::onRemoveRowsAction()
+void MainWindow::onRemoveRowAction()
 {
     QAction* action = qobject_cast<QAction*>(sender());
     auto index = action->data().toModelIndex();
+    QString name = model->data(model->index(index.row(),0)).toString();
     model->removeRows(index.row(),1,QModelIndex());
+    const QString query = QString("DELETE FROM text_editors WHERE text_editor = '%1';").arg(name);
+    emit executeSqlQuery(query);
 }
 
 void MainWindow::onExportRowAction()
@@ -159,11 +182,17 @@ void MainWindow::onImportCompleted(const QList<TextEditor> &result)
 {
     for (auto& text_editor : result){
         model->addEntry(model->rowCount(), text_editor);
+        const QString query = QString("INSERT INTO text_editors(text_editor, file_formats, encoding, has_intellisense, has_plugins, can_compile) VALUES("
+                      "'%1', '%2', '%3', %4, %5, %6)").arg(text_editor.getName()).arg(text_editor.getFormats()).arg(text_editor.getEncoding()).
+                arg(int(text_editor.hasIntellisense())).arg(int(text_editor.hasPlugins())).arg(int(text_editor.hasCompiler()));
+        emit executeSqlQuery(query);
     }
 }
 
 MainWindow::~MainWindow()
 {
+    db_thread->quit();
+    db_thread->wait();
     delete import_dlg;
     delete xmlcontroller;
     delete model;

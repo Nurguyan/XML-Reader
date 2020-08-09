@@ -29,7 +29,6 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
         comboboxdelegate.cpp \
-        databaseaccessor.cpp \
         databaseworker.cpp \
         importdialog.cpp \
         listmodel.cpp \
@@ -42,7 +41,6 @@ SOURCES += \
 
 HEADERS += \
         comboboxdelegate.h \
-        databaseaccessor.h \
         databaseworker.h \
         importdialog.h \
         listmodel.h \

@@ -31,8 +31,7 @@ void ImportDialog::onFinished()
 
 void ImportDialog::onFileChanged(QString filename)
 {
-    ui->lb_progress->setText(QString("Importing (%1/%2): %3").arg(ui->pb_progress->value()).
-                             arg(ui->pb_progress->maximum()).arg(filename));
+    ui->lb_progress->setText(QString("Importing (%1/%2): %3").arg(ui->pb_progress->value()).arg(ui->pb_progress->maximum()).arg(filename));
 }
 
 void ImportDialog::onFileImported(QString file, bool success)
@@ -40,6 +39,9 @@ void ImportDialog::onFileImported(QString file, bool success)
     auto position = 0;
     model->insertRows(position,1);
     ui->pb_progress->setValue(ui->pb_progress->value() + 1);
+    if (ui->pb_progress->value() == ui->pb_progress->maximum())
+        ui->lb_progress->setText("Import complete.");
+
     if (success){
         model->setData(model->index(position,0), QString("Import successful: %1").arg(file), Qt::EditRole);
     }
